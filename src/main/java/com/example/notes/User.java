@@ -1,16 +1,17 @@
 package com.example.notes;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-
 public class User {
-    @JsonProperty("username")
+    private int id;
     private String username;
-
-    @JsonProperty("password")
     private String password;
 
     public User() {
+    }
 
+    public User(int id, String username, String password) {
+        this.id = id;
+        this.username = username;
+        this.password = password;
     }
 
     public User(String username, String password) {
@@ -18,22 +19,26 @@ public class User {
         this.password = password;
     }
 
-    @JsonProperty("username")
+    public int getId() {
+        return id;
+    }
+
+    public void setId(int id) {
+        this.id = id;
+    }
+
     public String getUsername() {
         return username;
     }
 
-    @JsonProperty("username")
     public void setUsername(String username) {
         this.username = username;
     }
 
-    @JsonProperty("password")
     public String getPassword() {
         return password;
     }
 
-    @JsonProperty("password")
     public void setPassword(String password) {
         this.password = password;
     }

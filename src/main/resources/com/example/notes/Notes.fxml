@@ -2,44 +2,79 @@
 
 <?import javafx.geometry.*?>
 <?import javafx.scene.control.*?>
+<?import javafx.scene.control.cell.*?>
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.text.*?>
 
-<VBox alignment="CENTER" prefHeight="600.0" prefWidth="800.0" spacing="20.0" xmlns="http://javafx.com/javafx/17.0.2-ea" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.example.notes.HelloController" >
-    <padding>
-        <Insets bottom="20.0" left="20.0" right="20.0" top="20.0" />
-    </padding>
-    <Label contentDisplay="CENTER" graphicTextGap="0.0" prefHeight="69.0" prefWidth="190.0" text="N O T E S" translateY="-20.0">
+<VBox alignment="CENTER" prefHeight="600.0" prefWidth="800.0" spacing="20.0" xmlns="http://javafx.com/javafx/17.0.2-ea" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.example.notes.Controller">
+
+    <HBox alignment="CENTER" prefHeight="50.0" prefWidth="760.0" spacing="5.0" translateY="100.0">
+        <Label text="Font Size:" />
+        <ComboBox fx:id="fontSizeComboBox" prefWidth="100.0" />
+        <Label text="Font Family:" />
+        <ComboBox fx:id="fontFamilyComboBox" prefWidth="100.0" />
+        <CheckBox fx:id="boldCheckBox" text="Bold" />
+        <CheckBox fx:id="italicCheckBox" text="Italic" />
+    </HBox>
+
+    <HBox alignment="BASELINE_LEFT" spacing="20.0">
+        <Button fx:id="logoutButton" focusTraversable="false" mnemonicParsing="false" onAction="#handleLogout" prefHeight="35.0" prefWidth="75.0" text="Log Out">
+            <font>
+                <Font size="14.0" />
+            </font>
+        </Button>
+    </HBox>
+    <Label alignment="CENTER" contentDisplay="CENTER" graphicTextGap="0.0" prefHeight="69.0" prefWidth="190.0" text="N O T E S" translateY="-80.0">
         <font>
             <Font name="Gabriola" size="62.0" />
         </font>
     </Label>
     <HBox alignment="TOP_CENTER" prefHeight="150.0" prefWidth="760.0" translateY="-50.0">
-        <children>
-            <TextArea fx:id="noteArea" prefHeight="150.0" prefWidth="350.0" />
-        </children>
+        <TextArea fx:id="noteArea" minHeight="75.0" prefHeight="150.0" prefWidth="350.0" promptText="Input note text here..." translateX="30.0" wrapText="true" />
+        <Button alignment="TOP_CENTER" mnemonicParsing="false" onAction="#chooseImage" prefHeight="25.0" prefWidth="92.0" text="Choose Image" translateX="35.0" />
     </HBox>
-    <Button alignment="CENTER" onAction="#addNote" mnemonicParsing="false" prefHeight="35.0" prefWidth="100.0" text="Note" textAlignment="CENTER" translateY="-50.0">
+    <Button alignment="CENTER" mnemonicParsing="false" onAction="#addNote" prefHeight="35.0" prefWidth="100.0" text="Note" textAlignment="CENTER" translateY="-50.0">
         <font>
             <Font size="18.0" />
         </font>
     </Button>
     <HBox alignment="CENTER" prefHeight="235.0" prefWidth="760.0" translateY="-50.0">
-        <children>
-            <ListView fx:id="notesListView" onMouseClicked="#editNote" prefHeight="235.0" prefWidth="400.0" />
-        </children></HBox>
-    <HBox alignment="CENTER" prefHeight="100.0" prefWidth="200.0" spacing="10.0" translateY="-50.0">
-        <children>
-            <Button mnemonicParsing="false" onAction="#saveNotesToFile" prefHeight="35.0" prefWidth="100.0" text="Save">
-                <font>
-                    <Font size="18.0" />
-                </font>
-            </Button>
-            <Button mnemonicParsing="false" onAction="#deleteNote" prefHeight="35.0" prefWidth="100.0" text="Delete">
-                <font>
-                    <Font size="18.0" />
-                </font>
-            </Button>
-        </children>
+        <TableView fx:id="notesTableView" editable="true" focusTraversable="false" minHeight="200.0" minWidth="200.0" onMouseClicked="#editNote" prefWidth="565.0">
+            <columns>
+                <TableColumn prefWidth="413.0" text="Text">
+                    <cellValueFactory>
+                        <PropertyValueFactory property="text" />
+                    </cellValueFactory>
+                </TableColumn>
+                <TableColumn prefWidth="86.0" text="Date">
+                    <cellValueFactory>
+                        <PropertyValueFactory property="date" />
+                    </cellValueFactory>
+                </TableColumn>
+                <TableColumn prefWidth="86.0" text="Image">
+                    <cellValueFactory>
+                        <PropertyValueFactory property="imagePath" />
+                    </cellValueFactory>
+                </TableColumn>
+            </columns>
+        </TableView>
     </HBox>
+    <HBox alignment="CENTER" prefHeight="100.0" prefWidth="200.0" spacing="10.0" translateY="-50.0">
+        <Button mnemonicParsing="false" onAction="#deleteNote" prefHeight="35.0" prefWidth="100.0" text="Delete">
+            <font>
+                <Font size="18.0" />
+            </font>
+        </Button>
+
+    </HBox>
+    <HBox alignment="TOP_CENTER" prefHeight="50.0" prefWidth="760.0" spacing="5.0" translateY="-50.0">
+        <TextField fx:id="searchField" prefWidth="300.0" promptText="Search notes..." />
+        <Button mnemonicParsing="false" onAction="#searchNotes" prefHeight="25.0" prefWidth="75.0" text="Search" />
+        <Button mnemonicParsing="false" onAction="#undoSearch" prefHeight="25.0" prefWidth="100.0" text="Undo Search" />
+    </HBox>
+
+    <padding>
+        <Insets bottom="20.0" left="20.0" right="20.0" top="20.0" />
+    </padding>
+
 </VBox>
