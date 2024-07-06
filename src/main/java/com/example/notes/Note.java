@@ -7,34 +7,29 @@ public class Note {
     private String text;
     private LocalDate date;
     private boolean pinned;
-    private String fontFamily;
-    private double fontSize;
-    private boolean bold;
-    private boolean italic;
-    private String imagePath;
     private int originalIndex;
+    private String title;
+    public  Note () {};
 
-
-    public Note() {
-    }
-
-    public Note(int id, String text, LocalDate date, boolean pinned, String fontFamily, double fontSize, boolean bold, boolean italic, String imagePath, int originalIndex) {
+    public Note(int id, String text, LocalDate date, boolean pinned, int originalIndex, String title) {
         this.id = id;
         this.text = text;
         this.date = date;
         this.pinned = pinned;
-        this.fontFamily = fontFamily;
-        this.fontSize = fontSize;
-        this.bold = bold;
-        this.italic = italic;
-        this.imagePath = imagePath;
         this.originalIndex = originalIndex;
+        this.title = title;
     }
 
-    public Note(String text, LocalDate date, boolean pinned, String fontFamily, double fontSize, boolean bold, boolean italic, String imagePath, int originalIndex) {
-        this(0, text, date, pinned, fontFamily, fontSize, bold, italic, imagePath, originalIndex);
+    public Note(String text, LocalDate date, boolean pinned, int originalIndex, String title) {
+        this(0, text, date, pinned, originalIndex, title);
+    }
+    public String getTitle() {
+        return title;
     }
 
+    public void setTitle(String title) {
+        this.title = title;
+    }
     public int getId() {
         return id;
     }
@@ -67,46 +62,6 @@ public class Note {
         this.pinned = pinned;
     }
 
-    public String getFontFamily() {
-        return fontFamily;
-    }
-
-    public void setFontFamily(String fontFamily) {
-        this.fontFamily = fontFamily;
-    }
-
-    public double getFontSize() {
-        return fontSize;
-    }
-
-    public void setFontSize(double fontSize) {
-        this.fontSize = fontSize;
-    }
-
-    public boolean isBold() {
-        return bold;
-    }
-
-    public void setBold(boolean bold) {
-        this.bold = bold;
-    }
-
-    public boolean isItalic() {
-        return italic;
-    }
-
-    public void setItalic(boolean italic) {
-        this.italic = italic;
-    }
-
-    public String getImagePath() {
-        return imagePath;
-    }
-
-    public void setImagePath(String imagePath) {
-        this.imagePath = imagePath;
-    }
-
     public int getOriginalIndex() {
         return originalIndex;
     }
@@ -114,4 +69,5 @@ public class Note {
     public void setOriginalIndex(int originalIndex) {
         this.originalIndex = originalIndex;
     }
+
 }

@@ -1,6 +1,6 @@
 package com.example.notes;
 
-
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
@@ -10,18 +10,12 @@ import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
-import javafx.scene.control.cell.TextFieldTableCell;
-import javafx.scene.image.Image;
-import javafx.scene.image.ImageView;
-import javafx.scene.input.MouseEvent;
-import javafx.scene.text.Font;
-import javafx.scene.text.FontPosture;
-import javafx.scene.text.FontWeight;
+import javafx.scene.layout.VBox;
+import javafx.scene.web.WebEngine;
+import javafx.scene.web.WebView;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
-
-import javafx.util.StringConverter;
-
+import javafx.scene.web.HTMLEditor;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -34,15 +28,9 @@ import java.util.*;
 
 public class Controller {
     @FXML
-    private ComboBox<String> fontFamilyComboBox;
+    private TextField titleField;
     @FXML
-    private ComboBox<Double> fontSizeComboBox;
-    @FXML
-    private CheckBox boldCheckBox;
-    @FXML
-    private CheckBox italicCheckBox;
-    @FXML
-    private TextArea noteArea;
+    private HTMLEditor noteEditor;
     @FXML
     private TextField usernameField;
     private String currentUsername;
@@ -58,13 +46,22 @@ public class Controller {
     @FXML
     private TextField searchField;
     @FXML
+    private DatePicker datePicker;
+    @FXML
     private void searchNotes() {
         String searchText = searchField.getText().trim();
-        if (!searchText.isEmpty()) {
+        LocalDate selectedDate = datePicker.getValue();
+
+        if (!searchText.isEmpty() || selectedDate != null) {
             ObservableList<Note> filteredNotes = FXCollections.observableArrayList();
 
             for (Note note : notesList) {
-                if (note.getText().contains(searchText)) {
+                String plainText = extractPlainText(note.getText());
+                String title = note.getTitle();
+                boolean matchesText = searchText.isEmpty() || plainText.contains(searchText) || title.contains(searchText);
+                boolean matchesDate = selectedDate == null || note.getDate().equals(selectedDate);
+
+                if (matchesText && matchesDate) {
                     filteredNotes.add(note);
                 }
             }
@@ -75,15 +72,22 @@ public class Controller {
             notesTableView.refresh();
         }
     }
+
+    private String extractPlainText(String html) {
+        return html.replaceAll("<[^>]*>", "").replaceAll("\\s+", " ").trim();
+    }
+
     @FXML
     private void undoSearch() {
         notesTableView.setItems(notesList);
         searchField.clear();
+        datePicker.setValue(null);
         notesTableView.refresh();
     }
 
     private void setupPinColumn() {
         TableColumn<Note, Void> pinColumn = new TableColumn<>("Pin");
+        pinColumn.setPrefWidth(60);
         pinColumn.setCellFactory(col -> new TableCell<Note, Void>() {
             private final Button pinButton = new Button();
 
@@ -137,23 +141,6 @@ public class Controller {
         });
         notesTableView.refresh();
     }
-    private void updateNoteInDatabase(Note note, int noteId) throws SQLException {
-        String query = "UPDATE notes SET text = ?, date = ?, pinned = ?, font_family = ?, font_size = ?, bold = ?, italic = ?, image_path = ?, original_index = ? WHERE id = ?";
-        try (Connection conn = getDatabaseConnection();
-             PreparedStatement stmt = conn.prepareStatement(query)) {
-            stmt.setString(1, note.getText());
-            stmt.setDate(2, java.sql.Date.valueOf(note.getDate()));
-            stmt.setBoolean(3, note.isPinned());
-            stmt.setString(4, note.getFontFamily());
-            stmt.setDouble(5, note.getFontSize());
-            stmt.setBoolean(6, note.isBold());
-            stmt.setBoolean(7, note.isItalic());
-            stmt.setString(8, note.getImagePath());
-            stmt.setInt(9, note.getOriginalIndex());
-            stmt.setInt(10, noteId);
-            stmt.executeUpdate();
-        }
-    }
 
     public void initialize(String username) {
         this.currentUsername = username;
@@ -161,36 +148,78 @@ public class Controller {
         notesTableView.setItems(notesList);
         notesTableView.getColumns().clear();
 
-        fontSizeComboBox.setValue(12.0);
-        fontFamilyComboBox.setValue(Font.getDefault().getFamily());
-
-        fontFamilyComboBox.getItems().addAll(Font.getFamilies());
-        fontSizeComboBox.getItems().addAll(8.0, 9.0, 10.0, 11.0, 12.0, 14.0, 16.0, 18.0, 20.0, 22.0, 24.0, 26.0, 28.0, 36.0, 48.0, 72.0);
-
-        boldCheckBox.setOnAction(event -> updateNoteFont());
-        italicCheckBox.setOnAction(event -> updateNoteFont());
-        fontSizeComboBox.setOnAction(event -> updateNoteFont());
-        fontFamilyComboBox.setOnAction(event -> updateNoteFont());
-
         setupPinColumn();
 
-        TableColumn<Note, String> textColumn = new TableColumn<>("Text");
-        textColumn.setCellValueFactory(new PropertyValueFactory<>("text"));
-        textColumn.setPrefWidth(320);
+        TableColumn<Note, String> textColumn = new TableColumn<>("Title");
+        textColumn.setCellValueFactory(new PropertyValueFactory<>("title"));
+        textColumn.setPrefWidth(745);
         textColumn.setCellFactory(col -> new TableCell<>() {
+            private final WebView webView = new WebView();
+
+            {
+                webView.setPrefWidth(700);
+                webView.setPrefHeight(50);
+
+                webView.getEngine().documentProperty().addListener((obs, oldDoc, newDoc) -> {
+                    if (newDoc != null) {
+                        webView.getEngine().executeScript(
+                                "var style = document.createElement('style');"
+                                        + "style.type = 'text/css';"
+                                        + "style.innerHTML = 'body { overflow: hidden; }';"
+                                        + "document.head.appendChild(style);"
+                        );
+                    }
+                });
+
+                setGraphic(webView);
+            }
+
             @Override
-            protected void updateItem(String text, boolean empty) {
-                super.updateItem(text, empty);
-                if (empty || text == null) {
-                    setText(null);
+            protected void updateItem(String title, boolean empty) {
+                super.updateItem(title, empty);
+                if (empty || title == null) {
+                    webView.getEngine().loadContent("");
+                    setGraphic(null);
                 } else {
                     Note note = getTableView().getItems().get(getIndex());
-                    FontWeight weight = note.isBold() ? FontWeight.BOLD : FontWeight.NORMAL;
-                    FontPosture posture = note.isItalic() ? FontPosture.ITALIC : FontPosture.REGULAR;
-                    Font font = Font.font(note.getFontFamily(), weight, posture, note.getFontSize());
-                    setFont(font);
-                    setText(text);
+                    String displayContent = "<h2>" + title + "</h2>";
+                    webView.getEngine().loadContent(displayContent);
+                    setGraphic(webView);
 
+                    webView.setOnMouseClicked(event -> {
+                        HTMLEditor editorForWindow = new HTMLEditor();
+                        editorForWindow.setHtmlText(note.getText());
+
+                        Button chooseImageButton = new Button("Choose Image");
+                        chooseImageButton.setOnAction(e -> chooseImage(editorForWindow));
+
+                        TextField titleField = new TextField(note.getTitle());
+                        titleField.setStyle("-fx-font-size: 1.5em; -fx-font-weight: bold; -fx-text-fill: #333;");
+
+                        VBox vbox = new VBox(new Label("Title:"), titleField, editorForWindow, chooseImageButton);
+                        Scene scene = new Scene(vbox, 800, 600);
+                        Stage editorStage = new Stage();
+                        editorStage.setScene(scene);
+                        editorStage.setTitle("Edit Note");
+                        editorStage.show();
+
+                        editorStage.setOnHiding(e -> {
+                            String updatedTitle = titleField.getText().trim();
+                            if (updatedTitle.isEmpty()) {
+                                updatedTitle = extractTitle(editorForWindow.getHtmlText());
+                            }
+                            note.setTitle(updatedTitle);
+                            note.setText(editorForWindow.getHtmlText());
+
+                            try {
+                                updateNoteInDatabase(note, note.getId());
+                            } catch (SQLException ex) {
+                                ex.printStackTrace();
+                                showAlert("Error updating note in the database: " + ex.getMessage());
+                            }
+                            notesTableView.refresh();
+                        });
+                    });
                 }
             }
         });
@@ -201,10 +230,11 @@ public class Controller {
         dateColumn.setCellValueFactory(new PropertyValueFactory<>("date"));
         notesTableView.getColumns().add(dateColumn);
 
-        TableColumn<Note, String> imageColumn = new TableColumn<>("Image");
-        imageColumn.setCellValueFactory(new PropertyValueFactory<>("imagePath"));
-        imageColumn.setCellFactory(column -> new ImageTableCell());
-        notesTableView.getColumns().add(imageColumn);
+        for (TableColumn<?, ?> column : notesTableView.getColumns()) {
+            column.sortTypeProperty().addListener((observable, oldValue, newValue) -> {
+                notesTableView.refresh();
+            });
+        }
 
         try {
             int userId = getCurrentUserId();
@@ -214,6 +244,14 @@ public class Controller {
             showAlert("Error loading notes: " + e.getMessage());
         }
     }
+
+    private String extractTitle(String text) {
+        String plainText = text.replaceAll("<[^>]*>", "").trim();
+        String[] words = plainText.split("\\s+");
+        int wordCount = Math.min(words.length, 5);
+        return String.join(" ", Arrays.copyOfRange(words, 0, wordCount));
+    }
+
     public void openRegistrationWindow() throws IOException {
         Stage register = new Stage();
         FXMLLoader fxmlLoader = new FXMLLoader(Main.class.getResource("Registration.fxml"));
@@ -225,7 +263,7 @@ public class Controller {
 
     public void openNotesWindow(Stage stageToClose) throws IOException {
         FXMLLoader fxmlLoader = new FXMLLoader(Main.class.getResource("Notes.fxml"));
-        Scene scene = new Scene(fxmlLoader.load(), 800, 600);
+        Scene scene = new Scene(fxmlLoader.load(), 1280, 960);
         Stage notesStage = new Stage();
         notesStage.setTitle("Notes");
         notesStage.setScene(scene);
@@ -239,7 +277,7 @@ public class Controller {
             stageToClose.close();
         }
     }
-    private File selectedFile;
+
     @FXML
     private void chooseImage(ActionEvent event) {
         FileChooser fileChooser = new FileChooser();
@@ -247,55 +285,84 @@ public class Controller {
         fileChooser.getExtensionFilters().addAll(
                 new FileChooser.ExtensionFilter("Image Files", "*.png", "*.jpg", "*.gif")
         );
-
         File selectedFile = fileChooser.showOpenDialog(new Stage());
         if (selectedFile != null) {
-            this.selectedFile = selectedFile;
+            String imagePath = selectedFile.toURI().toString();
+            String imageHtml = "<img src='" + imagePath + "' width='100' height='100' />";
+            insertImageAtCursor(noteEditor, imageHtml);
         }
     }
 
     @FXML
+    private void chooseImage(HTMLEditor editor) {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Choose Image");
+        fileChooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Image Files", "*.png", "*.jpg", "*.gif")
+        );
+        File selectedFile = fileChooser.showOpenDialog(new Stage());
+        if (selectedFile != null) {
+            String imagePath = selectedFile.toURI().toString();
+            String imageHtml = "<img src='" + imagePath + "' width='100' height='100' />";
+            insertImageAtCursor(editor, imageHtml);
+        }
+    }
+
+    private void insertImageAtCursor(HTMLEditor editor, String html) {
+        WebView webView = (WebView) editor.lookup(".web-view");
+        WebEngine webEngine = webView.getEngine();
+
+        String escapedHtml = html.replace("'", "\\'");
+
+        Platform.runLater(() -> {
+            webEngine.executeScript(
+                    "document.execCommand('insertHTML', false, '" + escapedHtml + "');"
+            );
+        });
+    }
+
+    private boolean isNoteEmpty(String text) {
+        String textContent = text.replaceAll("<(?!img\\b)[^>]*>", "").trim();
+        return textContent.isEmpty();
+    }
+
+    @FXML
     private void addNote() {
-        String noteText = noteArea.getText().trim();
+        String title = titleField.getText().trim();
+        String noteText = noteEditor.getHtmlText().trim();
+
+        if (isNoteEmpty(noteText)) {
+            showAlert("Note content cannot be empty.");
+            return;
+        }
+
+        if (title.isEmpty()) {
+            title = extractTitle(noteText);
+        }
 
         Note newNote = new Note();
         newNote.setOriginalIndex(notesList.size());
-        if (!noteText.isEmpty() || selectedFile != null) {
-            if (selectedFile != null) {
-                String imagePath = selectedFile.getAbsolutePath();
-                newNote.setImagePath(imagePath);
-                selectedFile = null;
-            }
+        newNote.setText(noteText);  // сохраняем только текст заметки
+        newNote.setTitle(title);    // заголовок сохраняется отдельно
+        newNote.setDate(LocalDate.now());
 
-            if (!noteText.isEmpty()) {
-                newNote.setText(noteText);
-                Font currentFont = noteArea.getFont();
-                String fontFamily = currentFont.getFamily();
-                double fontSize = currentFont.getSize();
-                boolean bold = currentFont.getStyle().contains("Bold");
-                boolean italic = currentFont.getStyle().contains("Italic");
-                newNote.setFontFamily(fontFamily);
-                newNote.setFontSize(fontSize);
-                newNote.setBold(bold);
-                newNote.setItalic(italic);
-            }
+        notesList.add(newNote);
+        titleField.setText("");
+        noteEditor.setHtmlText("");
 
-            newNote.setDate(LocalDate.now());
-            notesList.add(newNote);
-            noteArea.clear();
-
-            try {
-                int userId = getCurrentUserId();
-                saveNoteToDatabase(newNote, userId);
-                noteArea.clear();
-            } catch (SQLException e) {
-                e.printStackTrace();
-                showAlert("Error saving note: " + e.getMessage());
-            }
+        try {
+            int userId = getCurrentUserId();
+            saveNoteToDatabase(newNote, userId);
+        } catch (SQLException e) {
+            e.printStackTrace();
+            showAlert("Error saving note: " + e.getMessage());
         }
+        notesTableView.refresh();
     }
+
+
     private List<Note> loadNotesFromDatabase(int userId) throws SQLException {
-        String query = "SELECT id, text, date, pinned, font_family, font_size, bold, italic, image_path, original_index FROM notes WHERE user_id = ?";
+        String query = "SELECT id, text, date, pinned, original_index, title FROM notes WHERE user_id = ?";
         List<Note> notes = new ArrayList<>();
         try (Connection conn = getDatabaseConnection();
              PreparedStatement stmt = conn.prepareStatement(query)) {
@@ -307,12 +374,8 @@ public class Controller {
                             rs.getString("text"),
                             rs.getDate("date").toLocalDate(),
                             rs.getBoolean("pinned"),
-                            rs.getString("font_family"),
-                            rs.getDouble("font_size"),
-                            rs.getBoolean("bold"),
-                            rs.getBoolean("italic"),
-                            rs.getString("image_path"),
-                            rs.getInt("original_index")
+                            rs.getInt("original_index"),
+                            rs.getString("title")
                     );
                     notes.add(note);
                 }
@@ -331,19 +394,15 @@ public class Controller {
 
     @FXML
     private void saveNoteToDatabase(Note note, int userId) throws SQLException {
-        String query = "INSERT INTO notes (user_id, text, date, pinned, font_family, font_size, bold, italic, image_path, original_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        String query = "INSERT INTO notes (user_id, text, date, pinned, original_index, title) VALUES (?, ?, ?, ?, ?, ?)";
         try (Connection conn = getDatabaseConnection();
              PreparedStatement stmt = conn.prepareStatement(query, Statement.RETURN_GENERATED_KEYS)) {
             stmt.setInt(1, userId);
             stmt.setString(2, note.getText());
             stmt.setDate(3, java.sql.Date.valueOf(note.getDate()));
             stmt.setBoolean(4, note.isPinned());
-            stmt.setString(5, note.getFontFamily());
-            stmt.setDouble(6, note.getFontSize());
-            stmt.setBoolean(7, note.isBold());
-            stmt.setBoolean(8, note.isItalic());
-            stmt.setString(9, note.getImagePath());
-            stmt.setInt(10, note.getOriginalIndex());
+            stmt.setInt(5, note.getOriginalIndex());
+            stmt.setString(6, note.getTitle());
             stmt.executeUpdate();
 
             try (ResultSet generatedKeys = stmt.getGeneratedKeys()) {
@@ -354,6 +413,19 @@ public class Controller {
         }
     }
 
+    private void updateNoteInDatabase(Note note, int noteId) throws SQLException {
+        String query = "UPDATE notes SET text = ?, date = ?, pinned = ?, original_index = ?, title = ? WHERE id = ?";
+        try (Connection conn = getDatabaseConnection();
+             PreparedStatement stmt = conn.prepareStatement(query)) {
+            stmt.setString(1, note.getText());
+            stmt.setDate(2, java.sql.Date.valueOf(note.getDate()));
+            stmt.setBoolean(3, note.isPinned());
+            stmt.setInt(4, note.getOriginalIndex());
+            stmt.setString(5, note.getTitle());
+            stmt.setInt(6, noteId);
+            stmt.executeUpdate();
+        }
+    }
 
     @FXML
     private void deleteNote() {
@@ -370,6 +442,7 @@ public class Controller {
                 try {
                     deleteNoteFromDatabase(selectedNote.getId());
                     notesList.remove(selectedNote);
+                    notesTableView.refresh();
                 } catch (SQLException e) {
                     e.printStackTrace();
                     showAlert("Error deleting note from the database: " + e.getMessage());
@@ -379,6 +452,7 @@ public class Controller {
             showAlert("No note selected for deletion");
         }
     }
+
     private void deleteNoteFromDatabase(int noteId) throws SQLException {
         String query = "DELETE FROM notes WHERE id = ?";
         try (Connection conn = getDatabaseConnection();
@@ -386,64 +460,6 @@ public class Controller {
             stmt.setInt(1, noteId);
             stmt.executeUpdate();
         }
-    }
-
-    @FXML
-    private void editNote(MouseEvent event) {
-        if (event.getClickCount() == 2) {
-            Note selectedNote = notesTableView.getSelectionModel().getSelectedItem();
-            if (selectedNote != null) {
-                cellEdit(selectedNote);
-            }
-        }
-    }
-
-    @FXML
-    private void cellEdit(Note selectedNote) {
-        notesTableView.setEditable(true);
-
-        TableColumn<Note, String> textColumn = (TableColumn<Note, String>) notesTableView.getColumns().get(1);
-        textColumn.setCellFactory(col -> new TextFieldTableCell<Note, String>(new StringConverter<String>() {
-            @Override
-            public String toString(String object) {
-                return object;
-            }
-
-            @Override
-            public String fromString(String string) {
-                return string;
-            }
-        }) {
-            @Override
-            public void updateItem(String item, boolean empty) {
-                super.updateItem(item, empty);
-
-                if (empty || item == null) {
-                    setText(null);
-                    setGraphic(null);
-                } else {
-                    setText(item);
-                    setGraphic(null);
-                }
-
-                Note note = getTableRow().getItem();
-                if (note != null) {
-                    setFont(Font.font(note.getFontFamily(), note.isBold() ? FontWeight.BOLD : FontWeight.NORMAL, note.isItalic() ? FontPosture.ITALIC : FontPosture.REGULAR, note.getFontSize()));
-                }
-            }
-        });
-
-        textColumn.setOnEditCommit(event -> {
-            Note note = event.getRowValue();
-            note.setText(event.getNewValue());
-
-            try {
-                updateNoteInDatabase(note, note.getId());
-            } catch (SQLException e) {
-                e.printStackTrace();
-                showAlert("Error updating note in the database: " + e.getMessage());
-            }
-        });
     }
 
     @FXML
@@ -524,7 +540,6 @@ public class Controller {
         return false;
     }
 
-
     private User authenticateUser(String username, String hashedPassword) throws SQLException {
         String query = "SELECT id, username FROM users WHERE username = ? AND password = ?";
         try (Connection conn = getDatabaseConnection();
@@ -570,7 +585,6 @@ public class Controller {
         openNotesWindow((Stage) ((Node) event.getSource()).getScene().getWindow());
     }
 
-
     private String hashPassword(String password) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -614,6 +628,7 @@ public class Controller {
         }
         return false;
     }
+
     @FXML
     private void handleLogout(ActionEvent event) throws IOException, SQLException {
         updateLoginState(currentUsername, false);
@@ -642,23 +657,13 @@ public class Controller {
         loginStage.show();
     }
 
-    private void updateNoteFont() {
-        String fontFamily = fontFamilyComboBox.getValue();
-        Double fontSize = fontSizeComboBox.getValue();
-
-        FontWeight fontWeight = boldCheckBox.isSelected() ? FontWeight.BOLD : FontWeight.NORMAL;
-        FontPosture fontPosture = italicCheckBox.isSelected() ? FontPosture.ITALIC : FontPosture.REGULAR;
-
-        Font font = Font.font(fontFamily, fontWeight, fontPosture, fontSize);
-
-        noteArea.setFont(font);
-    }
     private Connection getDatabaseConnection() throws SQLException {
-        String url = "jdbc:postgresql://localhost:5432/notes";
+        String url = "jdbc:postgresql://localhost/notes";
         String username = "postgres";
         String password = "Prk270830";
         return DriverManager.getConnection(url, username, password);
     }
+
     private int getCurrentUserId() throws SQLException {
         String query = "SELECT id FROM users WHERE username = ?";
         try (Connection conn = getDatabaseConnection();
@@ -672,30 +677,4 @@ public class Controller {
         }
         return -1;
     }
-
-}
-
-class ImageTableCell extends TableCell<Note, String> {
-
-    private final ImageView imageView = new ImageView();
-    private final double imageSize = 100;
-
-    public ImageTableCell() {
-        imageView.setFitWidth(imageSize);
-        imageView.setFitHeight(imageSize);
-    }
-
-    @Override
-    protected void updateItem(String imagePath, boolean empty) {
-        super.updateItem(imagePath, empty);
-
-        if (empty || imagePath == null) {
-            setGraphic(null);
-        } else {
-            Image image = new Image("file:" + imagePath);
-            imageView.setImage(image);
-            setGraphic(imageView);
-        }
-    }
-
 }

@@ -4,6 +4,7 @@ module com.example.notes {
 
     requires com.dlsc.formsfx;
     requires java.sql;
+    requires javafx.web;
 
     opens com.example.notes to javafx.fxml;
     exports com.example.notes;
